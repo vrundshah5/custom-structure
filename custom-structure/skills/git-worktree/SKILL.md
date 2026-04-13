@@ -3,8 +3,9 @@ name: git-worktree
 description: Use git worktrees to check out branches in isolated directories without switching. Ideal for code review, parallel development, and PR analysis without disrupting current work.
 license: MIT
 metadata:
-  author: eye-recommend
+  author: vrund shah
   version: "1.0.0"
+  project: "{PROJECT_NAME}"
 ---
 
 # Git Worktree Skill

@@ -8,6 +8,20 @@ const path = require("path");
 const sourceDir = path.join(__dirname, "custom-structure");
 const projectRoot = path.resolve(__dirname, "../../");
 
+// Resolve project name from the consuming project's package.json
+function getProjectName() {
+  const pkgPath = path.join(projectRoot, "package.json");
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      if (pkg.name) return pkg.name;
+    } catch {}
+  }
+  return path.basename(projectRoot);
+}
+
+const PROJECT_NAME = getProjectName();
+
 function syncDir(src, dest) {
   let added = 0;
   const stat = fs.statSync(src);
@@ -19,6 +33,13 @@ function syncDir(src, dest) {
   } else {
     if (!fs.existsSync(dest)) {
       fs.copyFileSync(src, dest);
+      // Replace {PROJECT_NAME} placeholder in markdown files
+      if (dest.endsWith(".md")) {
+        const content = fs.readFileSync(dest, "utf8");
+        if (content.includes("{PROJECT_NAME}")) {
+          fs.writeFileSync(dest, content.replaceAll("{PROJECT_NAME}", PROJECT_NAME), "utf8");
+        }
+      }
       added = 1;
     }
   }
