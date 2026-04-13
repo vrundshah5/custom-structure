@@ -25,20 +25,52 @@ function syncDir(src, dest) {
   return added;
 }
 
+function mergeMcpJson(src, dest) {
+  const source = JSON.parse(fs.readFileSync(src, "utf8"));
+  const sourceServers = source.servers || {};
+
+  if (!Object.keys(sourceServers).length) {
+    return 0; // nothing to merge
+  }
+
+  let target = { servers: {} };
+  if (fs.existsSync(dest)) {
+    try { target = JSON.parse(fs.readFileSync(dest, "utf8")); } catch {}
+  } else {
+    if (!fs.existsSync(path.dirname(dest))) {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+    }
+  }
+  if (!target.servers) target.servers = {};
+
+  let added = 0;
+  for (const [key, value] of Object.entries(sourceServers)) {
+    if (!target.servers[key]) {
+      target.servers[key] = value;
+      added++;
+    }
+  }
+
+  if (added > 0) {
+    fs.writeFileSync(dest, JSON.stringify(target, null, 2) + "\n", "utf8");
+  }
+  return added;
+}
+
 const targets = [
-  { name: ".github/skills",   src: path.join(sourceDir, "skills"),   dest: path.join(projectRoot, ".github", "skills") },
-  { name: ".github/agents",   src: path.join(sourceDir, "agents"),   dest: path.join(projectRoot, ".github", "agents") },
-  { name: ".vscode/mcp.json", src: path.join(sourceDir, ".vscode"),  dest: path.join(projectRoot, ".vscode") },
+  { name: ".github/skills",   src: path.join(sourceDir, "skills"),  dest: path.join(projectRoot, ".github", "skills"), merge: false },
+  { name: ".github/agents",   src: path.join(sourceDir, "agents"),  dest: path.join(projectRoot, ".github", "agents"), merge: false },
+  { name: ".vscode/mcp.json", src: path.join(sourceDir, ".vscode", "mcp.json"), dest: path.join(projectRoot, ".vscode", "mcp.json"), merge: true },
 ];
 
-for (const { name, src, dest } of targets) {
+for (const { name, src, dest, merge } of targets) {
   if (!fs.existsSync(src)) continue;
   try {
-    const added = syncDir(src, dest);
+    const added = merge ? mergeMcpJson(src, dest) : syncDir(src, dest);
     if (added > 0) {
-      console.log(`[custom-package] ✓ ${name}: ${added} new file(s) added`);
+      console.log(`[custom-package] ✓ ${name}: ${added} new ${merge ? "server(s)" : "file(s)"} added`);
     } else {
-      console.log(`[custom-package] ✓ ${name}: already up to date (no files overwritten)`);
+      console.log(`[custom-package] ✓ ${name}: already up to date`);
     }
   } catch (err) {
     console.error(`[custom-package] Failed to sync ${name}:`, err.message);
