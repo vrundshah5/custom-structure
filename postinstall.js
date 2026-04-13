@@ -8,21 +8,21 @@ const path = require("path");
 const sourceDir = path.join(__dirname, "custom-structure");
 const projectRoot = path.resolve(__dirname, "../../");
 
-function copyRecursive(src, dest) {
+function syncDir(src, dest) {
+  let added = 0;
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
-    if (!fs.existsSync(dest)) {
-      fs.mkdirSync(dest, { recursive: true });
-    }
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
     for (const item of fs.readdirSync(src)) {
-      copyRecursive(path.join(src, item), path.join(dest, item));
+      added += syncDir(path.join(src, item), path.join(dest, item));
     }
   } else {
-    // Don't overwrite existing files — user may have customized them
     if (!fs.existsSync(dest)) {
       fs.copyFileSync(src, dest);
+      added = 1;
     }
   }
+  return added;
 }
 
 const targets = [
@@ -34,9 +34,13 @@ const targets = [
 for (const { name, src, dest } of targets) {
   if (!fs.existsSync(src)) continue;
   try {
-    copyRecursive(src, dest);
-    console.log(`[custom-package] ✓ ${name} copied to your project`);
+    const added = syncDir(src, dest);
+    if (added > 0) {
+      console.log(`[custom-package] ✓ ${name}: ${added} new file(s) added`);
+    } else {
+      console.log(`[custom-package] ✓ ${name}: already up to date (no files overwritten)`);
+    }
   } catch (err) {
-    console.error(`[custom-package] Failed to copy ${name}:`, err.message);
+    console.error(`[custom-package] Failed to sync ${name}:`, err.message);
   }
 }
