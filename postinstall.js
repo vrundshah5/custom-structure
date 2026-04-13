@@ -5,9 +5,8 @@ const path = require("path");
 
 // When npm runs postinstall, cwd is the consuming project's root
 // __dirname is node_modules/custom-package/
-const packageSkillsDir = path.join(__dirname, "skills");
+const sourceDir = path.join(__dirname, "custom-structure");
 const projectRoot = path.resolve(__dirname, "../../");
-const targetSkillsDir = path.join(projectRoot, "skills");
 
 function copyRecursive(src, dest) {
   const stat = fs.statSync(src);
@@ -26,9 +25,18 @@ function copyRecursive(src, dest) {
   }
 }
 
-try {
-  copyRecursive(packageSkillsDir, targetSkillsDir);
-  console.log("[custom-package] ✓ Skills copied to your project's /skills folder");
-} catch (err) {
-  console.error("[custom-package] Failed to copy skills:", err.message);
+const targets = [
+  { name: "skills",       src: path.join(sourceDir, "skills"),        dest: path.join(projectRoot, "skills") },
+  { name: "agents",       src: path.join(sourceDir, "agents"),        dest: path.join(projectRoot, "agents") },
+  { name: ".vscode/mcp",  src: path.join(sourceDir, ".vscode"),       dest: path.join(projectRoot, ".vscode") },
+];
+
+for (const { name, src, dest } of targets) {
+  if (!fs.existsSync(src)) continue;
+  try {
+    copyRecursive(src, dest);
+    console.log(`[custom-package] ✓ ${name} copied to your project`);
+  } catch (err) {
+    console.error(`[custom-package] Failed to copy ${name}:`, err.message);
+  }
 }
