@@ -26,9 +26,9 @@ function copyRecursive(src, dest) {
 }
 
 const targets = [
-  { name: "skills",       src: path.join(sourceDir, "skills"),        dest: path.join(projectRoot, "skills") },
-  { name: "agents",       src: path.join(sourceDir, "agents"),        dest: path.join(projectRoot, "agents") },
-  { name: ".vscode/mcp",  src: path.join(sourceDir, ".vscode"),       dest: path.join(projectRoot, ".vscode") },
+  { name: ".github/skills",   src: path.join(sourceDir, "skills"),   dest: path.join(projectRoot, ".github", "skills") },
+  { name: ".github/agents",   src: path.join(sourceDir, "agents"),   dest: path.join(projectRoot, ".github", "agents") },
+  { name: ".vscode/mcp.json", src: path.join(sourceDir, ".vscode"),  dest: path.join(projectRoot, ".vscode") },
 ];
 
 for (const { name, src, dest } of targets) {
