@@ -40,6 +40,8 @@ function copyDir(src, dest) {
     }
   } else {
     if (!fs.existsSync(dest)) {
+      const destDir = path.dirname(dest);
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
       fs.copyFileSync(src, dest);
       if (dest.endsWith(".md")) {
         const content = fs.readFileSync(dest, "utf8");
@@ -185,8 +187,6 @@ async function multiSelectPrompt(question, options) {
   return new Promise((resolve) => {
     let cursor = 0;
     const checked = new Set();
-    // Pre-select all by default
-    options.forEach((_, i) => checked.add(i));
     const totalLines = options.length;
 
     const renderList = () => {
@@ -194,7 +194,7 @@ async function multiSelectPrompt(question, options) {
       for (let i = 0; i < totalLines; i++) {
         const opt = options[i];
         const pointer = i === cursor ? "\x1B[36m ❯ \x1B[0m" : "   ";
-        const box = checked.has(i) ? "\x1B[32m[✓]\x1B[0m" : "[ ]";
+        const box = checked.has(i) ? "\x1B[32m[✓]\x1B[0m" : "\x1B[90m[ ]\x1B[0m";
         const label = i === cursor ? `\x1B[1m${opt.name}\x1B[0m` : opt.name;
         const line = `${pointer}${box} ${label}`;
         process.stdout.write(`\x1B[2K${truncate(line, COLS)}\n`);
@@ -202,14 +202,14 @@ async function multiSelectPrompt(question, options) {
     };
 
     console.log(`\n\x1B[1m? ${question}\x1B[0m`);
-    console.log(`\x1B[90m  (↑↓ move, Space toggle, A select/deselect all, Enter confirm)\x1B[0m\n`);
+    console.log(`\x1B[90m  (↑↓ move, Tab/Space select, A all, Enter confirm)\x1B[0m\n`);
 
-    // Initial render
+    // Initial render — nothing pre-selected
     process.stdout.write(HIDE_CURSOR);
     for (let i = 0; i < totalLines; i++) {
       const opt = options[i];
       const pointer = i === cursor ? "\x1B[36m ❯ \x1B[0m" : "   ";
-      const box = checked.has(i) ? "\x1B[32m[✓]\x1B[0m" : "[ ]";
+      const box = checked.has(i) ? "\x1B[32m[✓]\x1B[0m" : "\x1B[90m[ ]\x1B[0m";
       const label = i === cursor ? `\x1B[1m${opt.name}\x1B[0m` : opt.name;
       const line = `${pointer}${box} ${label}`;
       process.stdout.write(`${truncate(line, COLS)}\n`);
@@ -226,7 +226,8 @@ async function multiSelectPrompt(question, options) {
       } else if (key === "\u001B[B") {
         cursor = cursor < totalLines - 1 ? cursor + 1 : 0;
         renderList();
-      } else if (key === " ") {
+      } else if (key === " " || key === "\t") {
+        // Space or Tab toggles selection
         if (checked.has(cursor)) checked.delete(cursor);
         else checked.add(cursor);
         renderList();
@@ -355,11 +356,15 @@ async function main() {
   const agentCount = installAgents(selectedAgents, structure.agentsDir);
   const skillCount = installSkills(selectedSkills, structure.skillsDir);
 
-  // Always merge MCP config to .vscode/
-  const mcpCount = mergeMcpJson(
-    path.join(sourceDir, ".vscode", "mcp.json"),
-    path.join(projectRoot, ".vscode", "mcp.json")
-  );
+  // Only merge MCP config if agents that need it are selected
+  let mcpCount = 0;
+  const needsMcp = selectedAgents.some((a) => a.value === "branch-reviewer");
+  if (needsMcp) {
+    mcpCount = mergeMcpJson(
+      path.join(sourceDir, ".vscode", "mcp.json"),
+      path.join(projectRoot, ".vscode", "mcp.json")
+    );
+  }
 
   printSummary(agentCount, skillCount, mcpCount);
 }
