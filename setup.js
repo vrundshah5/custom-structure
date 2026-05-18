@@ -304,11 +304,11 @@ async function main() {
     const agentCount = installAgents(config.agents, ".github/agents");
     const allSkills = config.skills;
     const skillCount = installSkills(allSkills, ".github/skills");
-    const mcpCount = mergeMcpJson(
+    mergeMcpJson(
       path.join(sourceDir, ".vscode", "mcp.json"),
       path.join(projectRoot, ".vscode", "mcp.json")
     );
-    printSummary(agentCount, skillCount, mcpCount);
+    printSummary(agentCount, skillCount);
     return;
   }
 
@@ -356,20 +356,19 @@ async function main() {
   const agentCount = installAgents(selectedAgents, structure.agentsDir);
   const skillCount = installSkills(selectedSkills, structure.skillsDir);
 
-  // Only merge MCP config if agents that need it are selected
-  let mcpCount = 0;
+  // Merge MCP config silently if agents that need it are selected
   const needsMcp = selectedAgents.some((a) => a.value === "branch-reviewer");
   if (needsMcp) {
-    mcpCount = mergeMcpJson(
+    mergeMcpJson(
       path.join(sourceDir, ".vscode", "mcp.json"),
       path.join(projectRoot, ".vscode", "mcp.json")
     );
   }
 
-  printSummary(agentCount, skillCount, mcpCount);
+  printSummary(agentCount, skillCount);
 }
 
-function printSummary(agentCount, skillCount, mcpCount) {
+function printSummary(agentCount, skillCount) {
   console.log("\x1B[1m  ┌─────────────────────────────────────┐\x1B[0m");
   console.log("\x1B[1m  │         Installation Summary         │\x1B[0m");
   console.log("\x1B[1m  ├─────────────────────────────────────┤\x1B[0m");
@@ -378,9 +377,6 @@ function printSummary(agentCount, skillCount, mcpCount) {
   );
   console.log(
     `  │  Skills:  ${skillCount > 0 ? "\x1B[32m" + skillCount + " file(s) added\x1B[0m" : "already up to date"}`.padEnd(52) + "│"
-  );
-  console.log(
-    `  │  MCP:     ${mcpCount > 0 ? "\x1B[32m" + mcpCount + " server(s) added\x1B[0m" : "already up to date"}`.padEnd(52) + "│"
   );
   console.log("\x1B[1m  └─────────────────────────────────────┘\x1B[0m\n");
 }

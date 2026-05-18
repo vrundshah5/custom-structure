@@ -16,7 +16,7 @@ module.exports = {
     {
       name: "Global (Root-level)",
       value: "global",
-      description: "agents/ & skills/ at project root — works with Claude, Cursor, etc.",
+      description: "agents/ & skills/ at project root — for Claude, Cursor & others",
       agentsDir: "agents",
       skillsDir: "skills",
     },
