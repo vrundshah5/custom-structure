@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const readline = require("readline");
 const config = require("./installer.config");
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
@@ -104,51 +103,51 @@ function mergeMcpJson(src, dest) {
   return added;
 }
 
-// ─── Interactive Prompts (using readline) ────────────────────────────────────
+// ─── Terminal Helpers ─────────────────────────────────────────────────────────
 
-function createRL() {
-  return readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-}
+const COLS = process.stdout.columns || 80;
+const HIDE_CURSOR = "\x1B[?25l";
+const SHOW_CURSOR = "\x1B[?25h";
 
-function clearLine() {
-  process.stdout.write("\x1B[2K\x1B[0G");
+function truncate(str, max) {
+  return str.length > max ? str.slice(0, max - 1) + "…" : str;
 }
 
 /**
- * Single-select prompt with arrow keys
+ * Single-select prompt (radio style)
  */
 async function selectPrompt(question, options) {
   return new Promise((resolve) => {
     let selected = 0;
+    const totalLines = options.length;
 
-    const render = () => {
-      // Move cursor up to redraw
-      if (selected >= 0) {
-        process.stdout.write(`\x1B[${options.length}A`);
+    const renderList = () => {
+      // Move cursor to start of list and clear
+      process.stdout.write(`\x1B[${totalLines}A`);
+      for (let i = 0; i < totalLines; i++) {
+        const opt = options[i];
+        const pointer = i === selected ? "\x1B[36m ❯ \x1B[0m" : "   ";
+        const radio = i === selected ? "\x1B[36m●\x1B[0m" : "○";
+        const label = i === selected ? `\x1B[1m${opt.name}\x1B[0m` : opt.name;
+        const line = `${pointer}${radio} ${label}`;
+        process.stdout.write(`\x1B[2K${truncate(line, COLS)}\n`);
       }
-      options.forEach((opt, i) => {
-        const prefix = i === selected ? "\x1B[36m❯\x1B[0m" : " ";
-        const label =
-          i === selected
-            ? `\x1B[36m${opt.name}\x1B[0m`
-            : opt.name;
-        const desc = opt.description ? ` \x1B[90m(${opt.description})\x1B[0m` : "";
-        process.stdout.write(`\x1B[2K  ${prefix} ${label}${desc}\n`);
-      });
     };
 
-    console.log(`\n\x1B[1m${question}\x1B[0m\n\x1B[90m(Use arrow keys to select, Enter to confirm)\x1B[0m\n`);
+    console.log(`\n\x1B[1m? ${question}\x1B[0m`);
+    console.log(`\x1B[90m  (↑↓ to move, Enter to select)\x1B[0m\n`);
+
     // Initial render
-    options.forEach((opt, i) => {
-      const prefix = i === selected ? "\x1B[36m❯\x1B[0m" : " ";
-      const label =
-        i === selected ? `\x1B[36m${opt.name}\x1B[0m` : opt.name;
-      const desc = opt.description ? ` \x1B[90m(${opt.description})\x1B[0m` : "";
-      process.stdout.write(`  ${prefix} ${label}${desc}\n`);
-    });
+    process.stdout.write(HIDE_CURSOR);
+    for (let i = 0; i < totalLines; i++) {
+      const opt = options[i];
+      const pointer = i === selected ? "\x1B[36m ❯ \x1B[0m" : "   ";
+      const radio = i === selected ? "\x1B[36m●\x1B[0m" : "○";
+      const label = i === selected ? `\x1B[1m${opt.name}\x1B[0m` : opt.name;
+      const desc = opt.description ? `  \x1B[90m${opt.description}\x1B[0m` : "";
+      const line = `${pointer}${radio} ${label}${desc}`;
+      process.stdout.write(`${truncate(line, COLS)}\n`);
+    }
 
     process.stdin.setRawMode(true);
     process.stdin.resume();
@@ -156,24 +155,20 @@ async function selectPrompt(question, options) {
 
     const onKey = (key) => {
       if (key === "\u001B[A") {
-        // Up
-        selected = selected > 0 ? selected - 1 : options.length - 1;
-        render();
+        selected = selected > 0 ? selected - 1 : totalLines - 1;
+        renderList();
       } else if (key === "\u001B[B") {
-        // Down
-        selected = selected < options.length - 1 ? selected + 1 : 0;
-        render();
+        selected = selected < totalLines - 1 ? selected + 1 : 0;
+        renderList();
       } else if (key === "\r" || key === "\n") {
-        // Enter
         process.stdin.setRawMode(false);
         process.stdin.pause();
         process.stdin.removeListener("data", onKey);
-        console.log(
-          `\n  \x1B[32m✔\x1B[0m Selected: \x1B[1m${options[selected].name}\x1B[0m\n`
-        );
+        process.stdout.write(SHOW_CURSOR);
+        console.log(`\n\x1B[32m  ✔\x1B[0m ${options[selected].name}\n`);
         resolve(options[selected]);
       } else if (key === "\u0003") {
-        // Ctrl+C
+        process.stdout.write(SHOW_CURSOR);
         process.stdin.setRawMode(false);
         process.exit(0);
       }
@@ -184,7 +179,7 @@ async function selectPrompt(question, options) {
 }
 
 /**
- * Multi-select prompt with arrow keys and space to toggle
+ * Multi-select prompt (checkbox style)
  */
 async function multiSelectPrompt(question, options) {
   return new Promise((resolve) => {
@@ -192,35 +187,33 @@ async function multiSelectPrompt(question, options) {
     const checked = new Set();
     // Pre-select all by default
     options.forEach((_, i) => checked.add(i));
+    const totalLines = options.length;
 
-    const render = () => {
-      process.stdout.write(`\x1B[${options.length}A`);
-      options.forEach((opt, i) => {
-        const pointer = i === cursor ? "\x1B[36m❯\x1B[0m" : " ";
-        const check = checked.has(i) ? "\x1B[32m◉\x1B[0m" : "○";
-        const label =
-          i === cursor ? `\x1B[36m${opt.name}\x1B[0m` : opt.name;
-        const desc = opt.description
-          ? ` \x1B[90m— ${opt.description}\x1B[0m`
-          : "";
-        process.stdout.write(`\x1B[2K  ${pointer} ${check} ${label}${desc}\n`);
-      });
+    const renderList = () => {
+      process.stdout.write(`\x1B[${totalLines}A`);
+      for (let i = 0; i < totalLines; i++) {
+        const opt = options[i];
+        const pointer = i === cursor ? "\x1B[36m ❯ \x1B[0m" : "   ";
+        const box = checked.has(i) ? "\x1B[32m[✓]\x1B[0m" : "[ ]";
+        const label = i === cursor ? `\x1B[1m${opt.name}\x1B[0m` : opt.name;
+        const line = `${pointer}${box} ${label}`;
+        process.stdout.write(`\x1B[2K${truncate(line, COLS)}\n`);
+      }
     };
 
-    console.log(
-      `\n\x1B[1m${question}\x1B[0m\n\x1B[90m(↑↓ navigate, Space toggle, A toggle all, Enter confirm)\x1B[0m\n`
-    );
+    console.log(`\n\x1B[1m? ${question}\x1B[0m`);
+    console.log(`\x1B[90m  (↑↓ move, Space toggle, A select/deselect all, Enter confirm)\x1B[0m\n`);
+
     // Initial render
-    options.forEach((opt, i) => {
-      const pointer = i === cursor ? "\x1B[36m❯\x1B[0m" : " ";
-      const check = checked.has(i) ? "\x1B[32m◉\x1B[0m" : "○";
-      const label =
-        i === cursor ? `\x1B[36m${opt.name}\x1B[0m` : opt.name;
-      const desc = opt.description
-        ? ` \x1B[90m— ${opt.description}\x1B[0m`
-        : "";
-      process.stdout.write(`  ${pointer} ${check} ${label}${desc}\n`);
-    });
+    process.stdout.write(HIDE_CURSOR);
+    for (let i = 0; i < totalLines; i++) {
+      const opt = options[i];
+      const pointer = i === cursor ? "\x1B[36m ❯ \x1B[0m" : "   ";
+      const box = checked.has(i) ? "\x1B[32m[✓]\x1B[0m" : "[ ]";
+      const label = i === cursor ? `\x1B[1m${opt.name}\x1B[0m` : opt.name;
+      const line = `${pointer}${box} ${label}`;
+      process.stdout.write(`${truncate(line, COLS)}\n`);
+    }
 
     process.stdin.setRawMode(true);
     process.stdin.resume();
@@ -228,30 +221,30 @@ async function multiSelectPrompt(question, options) {
 
     const onKey = (key) => {
       if (key === "\u001B[A") {
-        cursor = cursor > 0 ? cursor - 1 : options.length - 1;
-        render();
+        cursor = cursor > 0 ? cursor - 1 : totalLines - 1;
+        renderList();
       } else if (key === "\u001B[B") {
-        cursor = cursor < options.length - 1 ? cursor + 1 : 0;
-        render();
+        cursor = cursor < totalLines - 1 ? cursor + 1 : 0;
+        renderList();
       } else if (key === " ") {
         if (checked.has(cursor)) checked.delete(cursor);
         else checked.add(cursor);
-        render();
+        renderList();
       } else if (key === "a" || key === "A") {
-        if (checked.size === options.length) checked.clear();
+        if (checked.size === totalLines) checked.clear();
         else options.forEach((_, i) => checked.add(i));
-        render();
+        renderList();
       } else if (key === "\r" || key === "\n") {
         process.stdin.setRawMode(false);
         process.stdin.pause();
         process.stdin.removeListener("data", onKey);
+        process.stdout.write(SHOW_CURSOR);
         const selected = options.filter((_, i) => checked.has(i));
         const names = selected.map((s) => s.name).join(", ");
-        console.log(
-          `\n  \x1B[32m✔\x1B[0m Selected: \x1B[1m${names || "None"}\x1B[0m\n`
-        );
+        console.log(`\n\x1B[32m  ✔\x1B[0m ${names || "None"}\n`);
         resolve(selected);
       } else if (key === "\u0003") {
+        process.stdout.write(SHOW_CURSOR);
         process.stdin.setRawMode(false);
         process.exit(0);
       }
