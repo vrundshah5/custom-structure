@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 
-const { execSync } = require("child_process");
-const path = require("path");
+// npm suppresses interactive stdin during postinstall, so we just show
+// a message telling the user to run the setup wizard manually.
 
-// Run the interactive setup with inherited stdio so prompts work
-try {
-  execSync(`node "${path.join(__dirname, "setup.js")}"`, {
-    stdio: "inherit",
-    cwd: __dirname,
-  });
-} catch (err) {
-  // If interactive mode fails (e.g., CI without TTY), the setup.js
-  // already handles fallback to install everything non-interactively.
-  if (err.status) process.exit(err.status);
+const parentDir = require("path").basename(require("path").resolve(__dirname, "../"));
+
+// Only show the message when installed inside a real project's node_modules
+if (parentDir === "node_modules") {
+  console.log("");
+  console.log("  \x1B[1m╭──────────────────────────────────────────────────────╮\x1B[0m");
+  console.log("  \x1B[1m│  📦  Custom Package installed successfully!          │\x1B[0m");
+  console.log("  \x1B[1m├──────────────────────────────────────────────────────┤\x1B[0m");
+  console.log("  \x1B[1m│                                                      │\x1B[0m");
+  console.log("  \x1B[1m│  Run the setup wizard to choose agents & skills:     │\x1B[0m");
+  console.log("  \x1B[1m│                                                      │\x1B[0m");
+  console.log("  \x1B[1m│    \x1B[36mnpx custom-package-setup\x1B[0m\x1B[1m                          │\x1B[0m");
+  console.log("  \x1B[1m│                                                      │\x1B[0m");
+  console.log("  \x1B[1m╰──────────────────────────────────────────────────────╯\x1B[0m");
+  console.log("");
 }

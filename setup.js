@@ -7,14 +7,15 @@ const config = require("./installer.config");
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 const sourceDir = path.join(__dirname, "custom-structure");
-const projectRoot = path.resolve(__dirname, "../../");
 
-// Bail out if not running inside a real node_modules (e.g. npm git-clone cache)
+// Determine project root:
+// - If inside node_modules → consuming project is 2 levels up
+// - If run via npx directly → process.cwd() is the target project
 const parentDir = path.basename(path.resolve(__dirname, "../"));
-if (parentDir !== "node_modules") {
-  // Running in git-clone temp or directly — skip postinstall
-  process.exit(0);
-}
+const projectRoot =
+  parentDir === "node_modules"
+    ? path.resolve(__dirname, "../../")
+    : process.cwd();
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
