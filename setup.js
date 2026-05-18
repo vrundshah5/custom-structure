@@ -9,6 +9,13 @@ const config = require("./installer.config");
 const sourceDir = path.join(__dirname, "custom-structure");
 const projectRoot = path.resolve(__dirname, "../../");
 
+// Bail out if not running inside a real node_modules (e.g. npm git-clone cache)
+const parentDir = path.basename(path.resolve(__dirname, "../"));
+if (parentDir !== "node_modules") {
+  // Running in git-clone temp or directly — skip postinstall
+  process.exit(0);
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getProjectName() {
@@ -50,16 +57,31 @@ function copyDir(src, dest) {
   return added;
 }
 
+/**
+ * Strip single-line // comments and trailing commas from JSON-like content
+ */
+function stripJsonComments(text) {
+  // Remove single-line comments (// ...)
+  text = text.replace(/^\s*\/\/.*$/gm, "");
+  // Remove inline trailing comments after values
+  text = text.replace(/("|\d|true|false|null|\]|\})\s*\/\/.*$/gm, "$1");
+  // Remove trailing commas before } or ]
+  text = text.replace(/,\s*([}\]])/g, "$1");
+  return text;
+}
+
 function mergeMcpJson(src, dest) {
   if (!fs.existsSync(src)) return 0;
-  const source = JSON.parse(fs.readFileSync(src, "utf8"));
+  const raw = fs.readFileSync(src, "utf8");
+  const source = JSON.parse(stripJsonComments(raw));
   const sourceServers = source.servers || {};
   if (!Object.keys(sourceServers).length) return 0;
 
   let target = { servers: {} };
   if (fs.existsSync(dest)) {
     try {
-      target = JSON.parse(fs.readFileSync(dest, "utf8"));
+      const destRaw = fs.readFileSync(dest, "utf8");
+      target = JSON.parse(stripJsonComments(destRaw));
     } catch {}
   } else {
     if (!fs.existsSync(path.dirname(dest))) {
